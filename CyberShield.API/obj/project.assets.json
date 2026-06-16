@@ -5044,23 +5044,23 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\zakri\\.nuget\\packages\\": {},
+    "C:\\Users\\besho\\.nuget\\packages\\": {},
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\zakri\\source\\repos\\CyberShield.API\\CyberShield.API\\CyberShield.API.csproj",
+      "projectUniqueName": "D:\\Zeka Project\\CyberShield\\CyberShield.API\\CyberShield.API.csproj",
       "projectName": "CyberShield.API",
-      "projectPath": "C:\\Users\\zakri\\source\\repos\\CyberShield.API\\CyberShield.API\\CyberShield.API.csproj",
-      "packagesPath": "C:\\Users\\zakri\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\zakri\\source\\repos\\CyberShield.API\\CyberShield.API\\obj\\",
+      "projectPath": "D:\\Zeka Project\\CyberShield\\CyberShield.API\\CyberShield.API.csproj",
+      "packagesPath": "C:\\Users\\besho\\.nuget\\packages\\",
+      "outputPath": "D:\\Zeka Project\\CyberShield\\CyberShield.API\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
       ],
       "configFilePaths": [
-        "C:\\Users\\zakri\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Users\\besho\\AppData\\Roaming\\NuGet\\NuGet.Config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
@@ -5069,6 +5069,9 @@
       ],
       "sources": {
         "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+        "D:\\Nafes\\Nafes Micro\\Common\\Shared\\Premium-DataBaseLayer\\Domain\\Domain\\bin\\Debug": {},
+        "D:\\Nafes\\Nafes Micro\\Common\\Shared\\Premium-DataBaseLayer\\Domain\\Domain\\nupkgs": {},
+        "D:\\Nafes\\Nafes Micro\\Common\\Shared\\Premium-DataBaseLayer\\Framework\\Framework\\nupkgs": {},
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
@@ -5087,7 +5090,7 @@
         "auditLevel": "low",
         "auditMode": "direct"
       },
-      "SdkAnalysisLevel": "9.0.300"
+      "SdkAnalysisLevel": "9.0.200"
     },
     "frameworks": {
       "net9.0": {
@@ -5137,7 +5140,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.305/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.202/PortableRuntimeIdentifierGraph.json"
       }
     }
   }
