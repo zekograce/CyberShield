@@ -24,8 +24,6 @@ namespace CyberShield.API.Models
         [Column(TypeName = "decimal(18,2)")]
         public decimal AmountPaid { get; set; }
 
-        public int CurrentMonthFilesScanned { get; set; } = 0;
-
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 }

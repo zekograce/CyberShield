@@ -22,28 +22,33 @@ namespace CyberShield.API.Controllers
         [HttpPost]
         public async Task<IActionResult> Create(int packageId, [FromBody] CreatePackageFeatureDto dto)
         {
-            var packageExists = await _db.Packages.AnyAsync(p => p.Id == packageId);
-            if (!packageExists)
+            if (!await _db.Packages.AnyAsync(p => p.Id == packageId))
                 return NotFound(new { message = "Package not found." });
+
+            if (!await _db.Features.AnyAsync(f => f.Id == dto.FeatureId))
+                return BadRequest(new { message = "Feature not found." });
 
             var feature = new PackageFeature
             {
                 PackageId = packageId,
-                FeatureKey = dto.FeatureKey,
-                Name = dto.Name,
-                Value = dto.Value,
+                FeatureId = dto.FeatureId,
+                LimitValue = dto.LimitValue,
                 DisplayOrder = dto.DisplayOrder
             };
 
             _db.PackageFeatures.Add(feature);
             await _db.SaveChangesAsync();
 
+            await _db.Entry(feature).Reference(f => f.Feature).LoadAsync();
+
             return CreatedAtAction(null, new PackageFeatureResponseDto
             {
                 Id = feature.Id,
-                FeatureKey = feature.FeatureKey,
-                Name = feature.Name,
-                Value = feature.Value,
+                FeatureId = feature.FeatureId,
+                FeatureKey = feature.Feature?.FeatureKey ?? string.Empty,
+                FeatureName = feature.Feature?.Name ?? string.Empty,
+                LimitValue = feature.LimitValue,
+                LimitDisplay = feature.LimitValue == -1 ? "Unlimited" : feature.LimitValue.ToString(),
                 DisplayOrder = feature.DisplayOrder
             });
         }
@@ -52,14 +57,13 @@ namespace CyberShield.API.Controllers
         public async Task<IActionResult> Update(int packageId, int id, [FromBody] UpdatePackageFeatureDto dto)
         {
             var feature = await _db.PackageFeatures
+                .Include(f => f.Feature)
                 .FirstOrDefaultAsync(f => f.Id == id && f.PackageId == packageId);
 
             if (feature is null)
                 return NotFound(new { message = "Feature not found." });
 
-            if (dto.FeatureKey is not null) feature.FeatureKey = dto.FeatureKey;
-            if (dto.Name is not null) feature.Name = dto.Name;
-            if (dto.Value is not null) feature.Value = dto.Value;
+            if (dto.LimitValue.HasValue) feature.LimitValue = dto.LimitValue.Value;
             if (dto.DisplayOrder.HasValue) feature.DisplayOrder = dto.DisplayOrder.Value;
 
             await _db.SaveChangesAsync();
@@ -67,9 +71,11 @@ namespace CyberShield.API.Controllers
             return Ok(new PackageFeatureResponseDto
             {
                 Id = feature.Id,
-                FeatureKey = feature.FeatureKey,
-                Name = feature.Name,
-                Value = feature.Value,
+                FeatureId = feature.FeatureId,
+                FeatureKey = feature.Feature?.FeatureKey ?? string.Empty,
+                FeatureName = feature.Feature?.Name ?? string.Empty,
+                LimitValue = feature.LimitValue,
+                LimitDisplay = feature.LimitValue == -1 ? "Unlimited" : feature.LimitValue.ToString(),
                 DisplayOrder = feature.DisplayOrder
             });
         }
@@ -86,7 +92,7 @@ namespace CyberShield.API.Controllers
             _db.PackageFeatures.Remove(feature);
             await _db.SaveChangesAsync();
 
-            return Ok(new { message = "Feature deleted successfully." });
+            return Ok(new { message = "Feature removed from package." });
         }
     }
 }

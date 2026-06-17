@@ -1,5 +1,3 @@
-using System.ComponentModel.DataAnnotations;
-
 namespace CyberShield.API.Models
 {
     public class PackageFeature
@@ -9,17 +7,11 @@ namespace CyberShield.API.Models
         public int PackageId { get; set; }
         public virtual Package Package { get; set; } = null!;
 
-        [Required]
-        [MaxLength(100)]
-        public string FeatureKey { get; set; } = string.Empty;
+        public int FeatureId { get; set; }
+        public virtual Feature Feature { get; set; } = null!;
 
-        [Required]
-        [MaxLength(200)]
-        public string Name { get; set; } = string.Empty;
-
-        [Required]
-        [MaxLength(200)]
-        public string Value { get; set; } = string.Empty;
+        // -1 = unlimited, N = N uses per billing cycle
+        public int LimitValue { get; set; }
 
         public int DisplayOrder { get; set; } = 0;
     }

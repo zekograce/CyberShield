@@ -1,4 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using CyberShield.API.DTOs;
+using CyberShield.API.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 
@@ -6,18 +10,26 @@ namespace CyberShield.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class ScannerController : ControllerBase
     {
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IConfiguration _configuration;
+        private readonly IEntitlementService _entitlementService;
+        private readonly IUsageService _usageService;
 
-        public ScannerController(IHttpClientFactory httpClientFactory, IConfiguration configuration)
+        public ScannerController(
+            IHttpClientFactory httpClientFactory,
+            IConfiguration configuration,
+            IEntitlementService entitlementService,
+            IUsageService usageService)
         {
             _httpClientFactory = httpClientFactory;
             _configuration = configuration;
+            _entitlementService = entitlementService;
+            _usageService = usageService;
         }
 
-        // موديل لاستقبال اللينك من الفرونت إند
         public class UrlScanRequest
         {
             public string Url { get; set; } = string.Empty;
@@ -27,86 +39,88 @@ namespace CyberShield.API.Controllers
         public async Task<IActionResult> ScanUrl([FromBody] UrlScanRequest request)
         {
             if (string.IsNullOrEmpty(request.Url))
-                return BadRequest(new { message = "الرجاء إدخال رابط صحيح!" });
+                return BadRequest(new { message = "Please provide a valid URL." });
 
-            var apiKey = _configuration["GoogleSafeBrowsing:ApiKey"];
-            var googleUrl = $"{_configuration["GoogleSafeBrowsing:Url"]}?key={apiKey}";
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId is null) return Unauthorized();
 
-            // تجهيز البيانات بالشكل اللي جوجل بتطلبه بالظبط (Google V4 API Payload)
-            var googlePayload = new
+            // Entitlement check
+            var check = await _entitlementService.CheckAsync(userId, "LINK_SCAN");
+            if (!check.Allowed)
+                return StatusCode(403, new { message = check.Reason });
+
+            // Scan
+            bool isSafe;
+            string threatType;
+            (isSafe, threatType) = await ScanWithGoogleAsync(request.Url);
+
+            // Register usage
+            await _usageService.RegisterAsync(new RegisterUsageDto
             {
-                client = new { clientId = "cybershield", clientVersion = "1.0.0" },
-                threatInfo = new
-                {
-                    threatTypes = new[] { "MALWARE", "SOCIAL_ENGINEERING", "UNWANTED_SOFTWARE", "POTENTIALLY_HARMFUL_APPLICATION" },
-                    platformTypes = new[] { "ANY_PLATFORM" },
-                    threatEntryTypes = new[] { "URL" },
-                    threatEntries = new[] { new { url = request.Url } }
-                }
-            };
-
-            var jsonPayload = JsonSerializer.Serialize(googlePayload);
-            var httpClient = _httpClientFactory.CreateClient();
-            var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
-
-            // إرسال الطلب لجوجل
-            var response = await httpClient.PostAsync(googleUrl, content);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                // في حالة إن الـ API Key لسه مش حقيقي أو فيه مشكلة في السيرفر، هنعمل فحص تجريبي ذكي عشان مشروعك يشتغل
-                return SimulatedCheck(request.Url);
-            }
-
-            var responseString = await response.Content.ReadAsStringAsync();
-            using var doc = JsonDocument.Parse(responseString);
-            var root = doc.RootElement;
-
-            // قانون جوجل: لو الرد رجع فاضي {} معناه اللينك آمن بنسبة 100% ومفيش أي تهديد
-            if (!root.TryGetProperty("matches", out _))
-            {
-                return Ok(new
-                {
-                    isSafe = true,
-                    message = "هذا الرابط آمن تماماً للاستخدام! ✅",
-                    threatType = "None"
-                });
-            }
-
-            // لو جوجل لقى جواه بلاغات
-            var firstMatch = root.GetProperty("matches")[0];
-            var threatType = firstMatch.GetProperty("threatType").GetString();
+                UserId = userId,
+                FeatureKey = "LINK_SCAN",
+                PackageId = check.PackageId ?? 0,
+                FeatureId = check.FeatureId ?? 0,
+                Status = "Success",
+                Metadata = JsonSerializer.Serialize(new { url = request.Url, isSafe, threatType })
+            });
 
             return Ok(new
             {
-                isSafe = false,
-                message = $"تحذير! هذا الرابط غير آمن وقد يحتوي على تهديدات سيبرانية! ❌",
-                threatType = threatType
+                isSafe,
+                message = isSafe ? "This URL is safe." : "Warning! This URL may be unsafe.",
+                threatType
             });
         }
 
-        // دالة تجريبية ذكية تشتغل لو مفتاح جوجل مش شغال عشان تقدر تجرب الـ Swagger والفرونت إند فوراً
-        private IActionResult SimulatedCheck(string url)
+        private async Task<(bool isSafe, string threatType)> ScanWithGoogleAsync(string url)
         {
-            // لو اللينك فيه كلمة اختبارية زي evil أو virus هنعتبره خطر للتجربة
-            bool isEvil = url.Contains("evil") || url.Contains("malware") || url.Contains("test-virus");
-
-            if (isEvil)
+            try
             {
-                return Ok(new
+                var apiKey = _configuration["GoogleSafeBrowsing:ApiKey"];
+                var googleUrl = $"{_configuration["GoogleSafeBrowsing:Url"]}?key={apiKey}";
+
+                var payload = new
                 {
-                    isSafe = false,
-                    message = "تحذير (محاكاة)! هذا الرابط تم تصنيفه كـ موقع احتيالي خطير! ❌",
-                    threatType = "SOCIAL_ENGINEERING (Phishing)"
-                });
-            }
+                    client = new { clientId = "cybershield", clientVersion = "1.0.0" },
+                    threatInfo = new
+                    {
+                        threatTypes = new[] { "MALWARE", "SOCIAL_ENGINEERING", "UNWANTED_SOFTWARE", "POTENTIALLY_HARMFUL_APPLICATION" },
+                        platformTypes = new[] { "ANY_PLATFORM" },
+                        threatEntryTypes = new[] { "URL" },
+                        threatEntries = new[] { new { url } }
+                    }
+                };
 
-            return Ok(new
+                var httpClient = _httpClientFactory.CreateClient();
+                var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+                var response = await httpClient.PostAsync(googleUrl, content);
+
+                if (!response.IsSuccessStatusCode)
+                    return SimulatedCheck(url);
+
+                var responseString = await response.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(responseString);
+                var root = doc.RootElement;
+
+                if (!root.TryGetProperty("matches", out _))
+                    return (true, "None");
+
+                var threatType = root.GetProperty("matches")[0].GetProperty("threatType").GetString() ?? "Unknown";
+                return (false, threatType);
+            }
+            catch
             {
-                isSafe = true,
-                message = "هذا الرابط آمن تماماً للاستخدام (فحص محاكاة)! ✅",
-                threatType = "None"
-            });
+                return SimulatedCheck(url);
+            }
+        }
+
+        private static (bool isSafe, string threatType) SimulatedCheck(string url)
+        {
+            bool isEvil = url.Contains("evil") || url.Contains("malware") || url.Contains("test-virus");
+            return isEvil
+                ? (false, "SOCIAL_ENGINEERING (Phishing) [simulated]")
+                : (true, "None [simulated]");
         }
     }
 }

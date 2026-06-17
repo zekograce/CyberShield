@@ -29,6 +29,8 @@ builder.Services.AddHttpClient();
 // 3. Services
 builder.Services.AddScoped<IPackageService, PackageService>();
 builder.Services.AddScoped<IUserSubscriptionService, UserSubscriptionService>();
+builder.Services.AddScoped<IEntitlementService, EntitlementService>();
+builder.Services.AddScoped<IUsageService, UsageService>();
 
 // 4. JWT Authentication
 builder.Services.AddAuthentication(options =>
@@ -67,7 +69,6 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "CyberShield API", Version = "v1" });
-
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -77,7 +78,6 @@ builder.Services.AddSwaggerGen(c =>
         In = ParameterLocation.Header,
         Description = "Enter your token here"
     });
-
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
@@ -104,7 +104,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// Seeding
+// ── Seeding ──────────────────────────────────────────────────────────────
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -114,13 +114,11 @@ using (var scope = app.Services.CreateScope())
 
     // Roles
     foreach (var role in new[] { "Admin", "User" })
-    {
         if (!await roleManager.RoleExistsAsync(role))
             await roleManager.CreateAsync(new IdentityRole(role));
-    }
 
     // Admin user
-    var adminEmail = "superadmin@technocrypt.com";
+    const string adminEmail = "superadmin@technocrypt.com";
     if (await userManager.FindByEmailAsync(adminEmail) is null)
     {
         var admin = new ApplicationUser
@@ -139,9 +137,40 @@ using (var scope = app.Services.CreateScope())
         }
     }
 
-    // Packages seed
+    // ── Feature catalog ──────────────────────────────────────────────────
+    if (!db.Features.Any())
+    {
+        var features = new List<Feature>
+        {
+            new() { FeatureKey = "FILE_SCAN",               Name = "File Scan",                  Description = "Scan files for malware and threats." },
+            new() { FeatureKey = "LINK_SCAN",               Name = "Link Scan",                  Description = "Scan URLs for phishing and malware." },
+            new() { FeatureKey = "EMAIL_VERIFICATION",      Name = "Email Verification",         Description = "Verify email addresses and detect disposable emails." },
+            new() { FeatureKey = "PHISHING_PROTECTION",     Name = "Phishing Protection",        Description = "Advanced phishing detection and protection." },
+            new() { FeatureKey = "PASSWORD_GENERATOR",      Name = "Password Generator",         Description = "Generate strong, cryptographically secure passwords." },
+            new() { FeatureKey = "DATA_BACKUP",             Name = "Data Backup",                Description = "Automated data backup service." },
+            new() { FeatureKey = "REPORTS",                 Name = "Security Reports",           Description = "Generate security analysis reports." },
+            new() { FeatureKey = "SECURITY_NEWS",           Name = "Security News",              Description = "Access to latest cybersecurity news." },
+            new() { FeatureKey = "SECURITY_TIPS",           Name = "Security Tips",              Description = "Daily cybersecurity tips and best practices." },
+            new() { FeatureKey = "TEAM_SCANNING",           Name = "Team Scanning",              Description = "Unlimited scanning for all team members." },
+            new() { FeatureKey = "CUSTOM_DASHBOARD",        Name = "Custom Dashboard",           Description = "Fully customizable security dashboard." },
+            new() { FeatureKey = "ACCOUNT_MANAGER",         Name = "Dedicated Account Manager", Description = "A dedicated security consultant for your account." },
+            new() { FeatureKey = "TEAM_TRAINING",           Name = "Team Training",              Description = "Cybersecurity training sessions for your team." },
+            new() { FeatureKey = "INTEGRATIONS",            Name = "System Integrations",        Description = "Integration with existing enterprise systems." },
+            new() { FeatureKey = "SLA",                     Name = "Custom SLA",                 Description = "Custom Service Level Agreement." },
+            new() { FeatureKey = "SECURITY_CONSULTATIONS",  Name = "Security Consultations",     Description = "On-demand security consultation sessions." }
+        };
+        db.Features.AddRange(features);
+        await db.SaveChangesAsync();
+    }
+
+    // ── Packages ─────────────────────────────────────────────────────────
     if (!db.Packages.Any())
     {
+        // Build lookup by FeatureKey → Id
+        var featureMap = await db.Features.ToDictionaryAsync(f => f.FeatureKey, f => f.Id);
+
+        int F(string key) => featureMap[key];
+
         var packages = new List<Package>
         {
             new Package
@@ -155,14 +184,13 @@ using (var scope = app.Services.CreateScope())
                 IsPopular = false,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
-                Features = new List<PackageFeature>
+                PackageFeatures = new List<PackageFeature>
                 {
-                    new() { FeatureKey = "MAX_FILES_PER_MONTH", Name = "File Scans Per Month", Value = "100", DisplayOrder = 1 },
-                    new() { FeatureKey = "LINK_SCANNING", Name = "Link Scanning", Value = "Unlimited", DisplayOrder = 2 },
-                    new() { FeatureKey = "PASSWORD_GENERATOR", Name = "Password Generator", Value = "true", DisplayOrder = 3 },
-                    new() { FeatureKey = "SECURITY_TIPS", Name = "Security Tips", Value = "Daily", DisplayOrder = 4 },
-                    new() { FeatureKey = "SUPPORT", Name = "Support", Value = "Email", DisplayOrder = 5 },
-                    new() { FeatureKey = "REPORTS", Name = "Reports", Value = "Basic", DisplayOrder = 6 }
+                    new() { FeatureId = F("FILE_SCAN"),           LimitValue = 100, DisplayOrder = 1 },
+                    new() { FeatureId = F("LINK_SCAN"),           LimitValue = -1,  DisplayOrder = 2 },
+                    new() { FeatureId = F("PASSWORD_GENERATOR"),  LimitValue = -1,  DisplayOrder = 3 },
+                    new() { FeatureId = F("SECURITY_TIPS"),       LimitValue = -1,  DisplayOrder = 4 },
+                    new() { FeatureId = F("REPORTS"),             LimitValue = -1,  DisplayOrder = 5 }
                 }
             },
             new Package
@@ -176,17 +204,17 @@ using (var scope = app.Services.CreateScope())
                 IsPopular = true,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
-                Features = new List<PackageFeature>
+                PackageFeatures = new List<PackageFeature>
                 {
-                    new() { FeatureKey = "MAX_FILES_PER_MONTH", Name = "File Scans Per Month", Value = "Unlimited", DisplayOrder = 1 },
-                    new() { FeatureKey = "LINK_SCANNING", Name = "Link Scanning", Value = "Unlimited", DisplayOrder = 2 },
-                    new() { FeatureKey = "EMAIL_VERIFICATION", Name = "Email Verification", Value = "Advanced", DisplayOrder = 3 },
-                    new() { FeatureKey = "PHISHING_PROTECTION", Name = "Phishing Protection", Value = "Advanced", DisplayOrder = 4 },
-                    new() { FeatureKey = "SECURITY_NEWS", Name = "Cybersecurity News", Value = "true", DisplayOrder = 5 },
-                    new() { FeatureKey = "SUPPORT", Name = "Support", Value = "24/7", DisplayOrder = 6 },
-                    new() { FeatureKey = "REPORTS", Name = "Reports", Value = "Detailed", DisplayOrder = 7 },
-                    new() { FeatureKey = "DATA_BACKUP", Name = "Data Backup", Value = "true", DisplayOrder = 8 },
-                    new() { FeatureKey = "MAX_DEVICES", Name = "Device Protection", Value = "3 Devices", DisplayOrder = 9 }
+                    new() { FeatureId = F("FILE_SCAN"),            LimitValue = -1, DisplayOrder = 1 },
+                    new() { FeatureId = F("LINK_SCAN"),            LimitValue = -1, DisplayOrder = 2 },
+                    new() { FeatureId = F("EMAIL_VERIFICATION"),   LimitValue = -1, DisplayOrder = 3 },
+                    new() { FeatureId = F("PHISHING_PROTECTION"),  LimitValue = -1, DisplayOrder = 4 },
+                    new() { FeatureId = F("SECURITY_NEWS"),        LimitValue = -1, DisplayOrder = 5 },
+                    new() { FeatureId = F("PASSWORD_GENERATOR"),   LimitValue = -1, DisplayOrder = 6 },
+                    new() { FeatureId = F("DATA_BACKUP"),          LimitValue = -1, DisplayOrder = 7 },
+                    new() { FeatureId = F("REPORTS"),              LimitValue = -1, DisplayOrder = 8 },
+                    new() { FeatureId = F("SECURITY_TIPS"),        LimitValue = -1, DisplayOrder = 9 }
                 }
             },
             new Package
@@ -200,24 +228,24 @@ using (var scope = app.Services.CreateScope())
                 IsPopular = false,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
-                Features = new List<PackageFeature>
+                PackageFeatures = new List<PackageFeature>
                 {
-                    new() { FeatureKey = "MAX_FILES_PER_MONTH", Name = "File Scans Per Month", Value = "Unlimited", DisplayOrder = 1 },
-                    new() { FeatureKey = "LINK_SCANNING", Name = "Link Scanning", Value = "Unlimited", DisplayOrder = 2 },
-                    new() { FeatureKey = "EMAIL_VERIFICATION", Name = "Email Verification", Value = "Advanced", DisplayOrder = 3 },
-                    new() { FeatureKey = "PHISHING_PROTECTION", Name = "Phishing Protection", Value = "Advanced", DisplayOrder = 4 },
-                    new() { FeatureKey = "SECURITY_NEWS", Name = "Cybersecurity News", Value = "true", DisplayOrder = 5 },
-                    new() { FeatureKey = "SUPPORT", Name = "Support", Value = "24/7", DisplayOrder = 6 },
-                    new() { FeatureKey = "REPORTS", Name = "Reports", Value = "Advanced Analytics", DisplayOrder = 7 },
-                    new() { FeatureKey = "DATA_BACKUP", Name = "Data Backup", Value = "true", DisplayOrder = 8 },
-                    new() { FeatureKey = "MAX_DEVICES", Name = "Device Protection", Value = "Unlimited", DisplayOrder = 9 },
-                    new() { FeatureKey = "TEAM_SCANNING", Name = "Team Scanning", Value = "Unlimited", DisplayOrder = 10 },
-                    new() { FeatureKey = "CUSTOM_DASHBOARD", Name = "Custom Dashboard", Value = "true", DisplayOrder = 11 },
-                    new() { FeatureKey = "ACCOUNT_MANAGER", Name = "Account Manager", Value = "Dedicated", DisplayOrder = 12 },
-                    new() { FeatureKey = "TEAM_TRAINING", Name = "Team Training", Value = "true", DisplayOrder = 13 },
-                    new() { FeatureKey = "INTEGRATIONS", Name = "System Integrations", Value = "true", DisplayOrder = 14 },
-                    new() { FeatureKey = "SLA", Name = "SLA", Value = "Custom", DisplayOrder = 15 },
-                    new() { FeatureKey = "SECURITY_CONSULTATIONS", Name = "Security Consultations", Value = "true", DisplayOrder = 16 }
+                    new() { FeatureId = F("FILE_SCAN"),               LimitValue = -1, DisplayOrder = 1 },
+                    new() { FeatureId = F("LINK_SCAN"),               LimitValue = -1, DisplayOrder = 2 },
+                    new() { FeatureId = F("EMAIL_VERIFICATION"),      LimitValue = -1, DisplayOrder = 3 },
+                    new() { FeatureId = F("PHISHING_PROTECTION"),     LimitValue = -1, DisplayOrder = 4 },
+                    new() { FeatureId = F("SECURITY_NEWS"),           LimitValue = -1, DisplayOrder = 5 },
+                    new() { FeatureId = F("PASSWORD_GENERATOR"),      LimitValue = -1, DisplayOrder = 6 },
+                    new() { FeatureId = F("DATA_BACKUP"),             LimitValue = -1, DisplayOrder = 7 },
+                    new() { FeatureId = F("REPORTS"),                 LimitValue = -1, DisplayOrder = 8 },
+                    new() { FeatureId = F("SECURITY_TIPS"),           LimitValue = -1, DisplayOrder = 9 },
+                    new() { FeatureId = F("TEAM_SCANNING"),           LimitValue = -1, DisplayOrder = 10 },
+                    new() { FeatureId = F("CUSTOM_DASHBOARD"),        LimitValue = -1, DisplayOrder = 11 },
+                    new() { FeatureId = F("ACCOUNT_MANAGER"),         LimitValue = -1, DisplayOrder = 12 },
+                    new() { FeatureId = F("TEAM_TRAINING"),           LimitValue = -1, DisplayOrder = 13 },
+                    new() { FeatureId = F("INTEGRATIONS"),            LimitValue = -1, DisplayOrder = 14 },
+                    new() { FeatureId = F("SLA"),                     LimitValue = -1, DisplayOrder = 15 },
+                    new() { FeatureId = F("SECURITY_CONSULTATIONS"),  LimitValue = -1, DisplayOrder = 16 }
                 }
             }
         };

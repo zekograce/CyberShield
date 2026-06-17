@@ -47,9 +47,11 @@ namespace CyberShield.API.DTOs
     public class PackageFeatureResponseDto
     {
         public int Id { get; set; }
+        public int FeatureId { get; set; }
         public string FeatureKey { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
-        public string Value { get; set; } = string.Empty;
+        public string FeatureName { get; set; } = string.Empty;
+        public int LimitValue { get; set; }
+        public string LimitDisplay { get; set; } = string.Empty; // "Unlimited" or "100"
         public int DisplayOrder { get; set; }
     }
 

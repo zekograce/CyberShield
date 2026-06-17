@@ -1,78 +1,89 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using CyberShield.API.DTOs;
+using CyberShield.API.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace CyberShield.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class EmailVerificationController : ControllerBase
     {
-        // موديل لاستقبال البريد الإلكتروني من الفرونت إند
+        private readonly IEntitlementService _entitlementService;
+        private readonly IUsageService _usageService;
+
+        public EmailVerificationController(IEntitlementService entitlementService, IUsageService usageService)
+        {
+            _entitlementService = entitlementService;
+            _usageService = usageService;
+        }
+
         public class EmailRequest
         {
             public string Email { get; set; } = string.Empty;
         }
 
         [HttpPost("verify")]
-        public IActionResult VerifyEmail([FromBody] EmailRequest request)
+        public async Task<IActionResult> VerifyEmail([FromBody] EmailRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.Email))
-            {
-                return BadRequest(new { message = "الرجاء إدخال بريد إلكتروني صالح!" });
-            }
+                return BadRequest(new { message = "Please provide a valid email address." });
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId is null) return Unauthorized();
+
+            // Entitlement check
+            var check = await _entitlementService.CheckAsync(userId, "EMAIL_VERIFICATION");
+            if (!check.Allowed)
+                return StatusCode(403, new { message = check.Reason });
 
             string email = request.Email.Trim().ToLower();
-
-            // 1. التحقق من الصيغة العامة للإيميل باستخدام الـ Regex
-            string emailRegex = @"^[^@\s]+@[^@\s]+\.[^@\s]+$";
-            bool isValidFormat = Regex.IsMatch(email, emailRegex);
+            bool isValidFormat = Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$");
 
             if (!isValidFormat)
             {
                 return Ok(new
                 {
-                    email = email,
+                    email,
                     isValid = false,
                     isDisposable = false,
-                    status = "صيغة غير صحيحة ❌",
-                    riskLevel = "عالي الخطورة (High)",
-                    recommendation = "البريد لا يطابق الصيغة القياسية لرسائل البريد الإلكتروني."
+                    status = "Invalid format",
+                    riskLevel = "High",
+                    recommendation = "The email does not match the standard format."
                 });
             }
 
-            // 2. قائمة بالنطاقات الوهمية والمؤقتة المشهورة (Disposable Emails)
-            var disposableDomains = new List<string>
+            var disposableDomains = new HashSet<string>
             {
                 "mailinator.com", "yopmail.com", "tempmail.com",
                 "10minutemail.com", "sharklasers.com", "guerrillamail.com"
             };
 
-            // استخراج الدومين من الإيميل
             string domain = email.Split('@')[1];
             bool isDisposable = disposableDomains.Contains(domain);
 
-            // 3. تحليل النتيجة وبناء تقرير الأمان
-            string status = "آمن وموثوق ✅";
-            string riskLevel = "آمن (Safe)";
-            string recommendation = "يمكنك التعامل مع هذا البريد الإلكتروني بثقة.";
+            string status = isDisposable ? "Disposable / Temporary" : "Valid";
+            string riskLevel = isDisposable ? "Medium" : "Safe";
+            string recommendation = isDisposable
+                ? "This is a temporary email. Use with caution."
+                : "This email appears trustworthy.";
 
-            if (isDisposable)
+            // Register usage
+            await _usageService.RegisterAsync(new RegisterUsageDto
             {
-                status = "بريد مؤقت / وهمي ⚠️";
-                riskLevel = "متوسط الخطورة (Medium)";
-                recommendation = "حذر: هذا البريد مؤقت ويُستخدم غالباً للحسابات المزيفة أو الاحتيال.";
-            }
-
-            return Ok(new
-            {
-                email = email,
-                domain = domain,
-                isValid = true,
-                isDisposable = isDisposable,
-                status = status,
-                riskLevel = riskLevel,
-                recommendation = recommendation
+                UserId = userId,
+                FeatureKey = "EMAIL_VERIFICATION",
+                PackageId = check.PackageId ?? 0,
+                FeatureId = check.FeatureId ?? 0,
+                Status = "Success",
+                Metadata = JsonSerializer.Serialize(new { email, domain, isDisposable, isValidFormat })
             });
+
+            return Ok(new { email, domain, isValid = true, isDisposable, status, riskLevel, recommendation });
         }
     }
 }

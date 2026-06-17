@@ -17,7 +17,7 @@ namespace CyberShield.API.Services
         public async Task<SubscriptionResponseDto> SubscribeAsync(string userId, int packageId)
         {
             var package = await _db.Packages
-                .Include(p => p.Features)
+                .Include(p => p.PackageFeatures).ThenInclude(pf => pf.Feature)
                 .FirstOrDefaultAsync(p => p.Id == packageId && p.IsActive)
                 ?? throw new InvalidOperationException("Package not found or inactive.");
 
@@ -52,7 +52,7 @@ namespace CyberShield.API.Services
         public async Task<SubscriptionResponseDto> UpgradeAsync(string userId, int newPackageId)
         {
             var newPackage = await _db.Packages
-                .Include(p => p.Features)
+                .Include(p => p.PackageFeatures).ThenInclude(pf => pf.Feature)
                 .FirstOrDefaultAsync(p => p.Id == newPackageId && p.IsActive)
                 ?? throw new InvalidOperationException("Target package not found or inactive.");
 
@@ -104,7 +104,8 @@ namespace CyberShield.API.Services
         {
             var subscription = await _db.UserSubscriptions
                 .Include(s => s.Package)
-                    .ThenInclude(p => p.Features.OrderBy(f => f.DisplayOrder))
+                    .ThenInclude(p => p.PackageFeatures.OrderBy(pf => pf.DisplayOrder))
+                        .ThenInclude(pf => pf.Feature)
                 .FirstOrDefaultAsync(s => s.UserId == userId && s.Status == SubscriptionStatus.Active);
 
             return subscription is null ? null : MapToDto(subscription);
@@ -114,7 +115,8 @@ namespace CyberShield.API.Services
         {
             var subscriptions = await _db.UserSubscriptions
                 .Include(s => s.Package)
-                    .ThenInclude(p => p.Features.OrderBy(f => f.DisplayOrder))
+                    .ThenInclude(p => p.PackageFeatures.OrderBy(pf => pf.DisplayOrder))
+                        .ThenInclude(pf => pf.Feature)
                 .Where(s => s.UserId == userId)
                 .OrderByDescending(s => s.CreatedAt)
                 .ToListAsync();
@@ -134,15 +136,16 @@ namespace CyberShield.API.Services
             EndDate = s.EndDate,
             Status = s.Status.ToString(),
             AmountPaid = s.AmountPaid,
-            CurrentMonthFilesScanned = s.CurrentMonthFilesScanned,
             CreatedAt = s.CreatedAt,
-            Features = s.Package?.Features.Select(f => new PackageFeatureResponseDto
+            Features = s.Package?.PackageFeatures.Select(pf => new PackageFeatureResponseDto
             {
-                Id = f.Id,
-                FeatureKey = f.FeatureKey,
-                Name = f.Name,
-                Value = f.Value,
-                DisplayOrder = f.DisplayOrder
+                Id = pf.Id,
+                FeatureId = pf.FeatureId,
+                FeatureKey = pf.Feature?.FeatureKey ?? string.Empty,
+                FeatureName = pf.Feature?.Name ?? string.Empty,
+                LimitValue = pf.LimitValue,
+                LimitDisplay = pf.LimitValue == -1 ? "Unlimited" : pf.LimitValue.ToString(),
+                DisplayOrder = pf.DisplayOrder
             }).ToList() ?? new()
         };
     }

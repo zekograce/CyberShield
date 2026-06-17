@@ -33,7 +33,7 @@ namespace CyberShield.API.Models
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-        public virtual ICollection<PackageFeature> Features { get; set; } = new List<PackageFeature>();
+        public virtual ICollection<PackageFeature> PackageFeatures { get; set; } = new List<PackageFeature>();
         public virtual ICollection<UserSubscription> Subscriptions { get; set; } = new List<UserSubscription>();
     }
 }

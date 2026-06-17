@@ -17,7 +17,8 @@ namespace CyberShield.API.Services
         public async Task<List<PackageResponseDto>> GetAllAsync(bool includeInactive = false)
         {
             var query = _db.Packages
-                .Include(p => p.Features.OrderBy(f => f.DisplayOrder))
+                .Include(p => p.PackageFeatures.OrderBy(pf => pf.DisplayOrder))
+                    .ThenInclude(pf => pf.Feature)
                 .AsQueryable();
 
             if (!includeInactive)
@@ -30,7 +31,8 @@ namespace CyberShield.API.Services
         public async Task<PackageResponseDto?> GetByIdAsync(int id)
         {
             var package = await _db.Packages
-                .Include(p => p.Features.OrderBy(f => f.DisplayOrder))
+                .Include(p => p.PackageFeatures.OrderBy(pf => pf.DisplayOrder))
+                    .ThenInclude(pf => pf.Feature)
                 .FirstOrDefaultAsync(p => p.Id == id);
 
             return package is null ? null : MapToDto(package);
@@ -59,7 +61,8 @@ namespace CyberShield.API.Services
         public async Task<PackageResponseDto?> UpdateAsync(int id, UpdatePackageDto dto)
         {
             var package = await _db.Packages
-                .Include(p => p.Features)
+                .Include(p => p.PackageFeatures)
+                    .ThenInclude(pf => pf.Feature)
                 .FirstOrDefaultAsync(p => p.Id == id);
 
             if (package is null) return null;
@@ -87,7 +90,7 @@ namespace CyberShield.API.Services
             return true;
         }
 
-        private static PackageResponseDto MapToDto(Package p) => new()
+        internal static PackageResponseDto MapToDto(Package p) => new()
         {
             Id = p.Id,
             Name = p.Name,
@@ -99,13 +102,15 @@ namespace CyberShield.API.Services
             IsPopular = p.IsPopular,
             IsActive = p.IsActive,
             CreatedAt = p.CreatedAt,
-            Features = p.Features.Select(f => new PackageFeatureResponseDto
+            Features = p.PackageFeatures.Select(pf => new PackageFeatureResponseDto
             {
-                Id = f.Id,
-                FeatureKey = f.FeatureKey,
-                Name = f.Name,
-                Value = f.Value,
-                DisplayOrder = f.DisplayOrder
+                Id = pf.Id,
+                FeatureId = pf.FeatureId,
+                FeatureKey = pf.Feature?.FeatureKey ?? string.Empty,
+                FeatureName = pf.Feature?.Name ?? string.Empty,
+                LimitValue = pf.LimitValue,
+                LimitDisplay = pf.LimitValue == -1 ? "Unlimited" : pf.LimitValue.ToString(),
+                DisplayOrder = pf.DisplayOrder
             }).ToList()
         };
     }

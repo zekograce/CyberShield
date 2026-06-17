@@ -1,94 +1,101 @@
-using CyberShield.API.Data;
-using CyberShield.API.Models;
+using CyberShield.API.DTOs;
+using CyberShield.API.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Text.Json;
 
 namespace CyberShield.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class VirusScanController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IEntitlementService _entitlementService;
+        private readonly IUsageService _usageService;
 
-        public VirusScanController(ApplicationDbContext context)
+        public VirusScanController(IEntitlementService entitlementService, IUsageService usageService)
         {
-            _context = context;
+            _entitlementService = entitlementService;
+            _usageService = usageService;
         }
 
         [HttpPost("scan")]
-        public async Task<IActionResult> ScanFile([FromForm] FileScanRequest request)
+        public async Task<IActionResult> ScanFile(IFormFile? file)
         {
-            if (string.IsNullOrEmpty(request.UserId))
-                return BadRequest(new { message = "A valid user ID is required." });
-
-            if (request.File == null || request.File.Length == 0)
+            if (file == null || file.Length == 0)
                 return BadRequest(new { message = "Please select a valid file to scan." });
 
-            var userSub = await _context.UserSubscriptions
-                .Include(s => s.Package)
-                    .ThenInclude(p => p.Features)
-                .FirstOrDefaultAsync(s => s.UserId == request.UserId && s.Status == SubscriptionStatus.Active);
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId is null) return Unauthorized();
 
-            if (userSub == null || userSub.EndDate < DateTime.UtcNow)
-                return BadRequest(new { message = "No active subscription found. Please subscribe to a package first." });
+            // Entitlement check
+            var check = await _entitlementService.CheckAsync(userId, "FILE_SCAN");
+            if (!check.Allowed)
+                return StatusCode(403, new { message = check.Reason });
 
-            var package = userSub.Package;
-            var maxFilesFeature = package.Features.FirstOrDefault(f => f.FeatureKey == "MAX_FILES_PER_MONTH");
-            bool isUnlimited = maxFilesFeature?.Value == "Unlimited";
-            int maxFiles = isUnlimited ? int.MaxValue : (int.TryParse(maxFilesFeature?.Value, out var parsed) ? parsed : int.MaxValue);
-
-            if (!isUnlimited && userSub.CurrentMonthFilesScanned >= maxFiles)
-                return BadRequest(new { message = $"Monthly scan limit of {maxFiles} files reached for the {package.Name} plan." });
-
+            // Compute SHA-256 hash
             string fileHash;
-            using (var stream = request.File.OpenReadStream())
+            using (var stream = file.OpenReadStream())
             using (var sha256 = SHA256.Create())
             {
                 var hashBytes = await sha256.ComputeHashAsync(stream);
                 fileHash = BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
             }
 
+            // Scan logic
             bool isSafe = true;
             string threatName = "No threats detected";
-            var ext = Path.GetExtension(request.File.FileName).ToLower();
+            var ext = Path.GetExtension(file.FileName).ToLower();
 
             if (ext is ".exe" or ".bat" or ".vbs" or ".cmd")
             {
                 isSafe = false;
                 threatName = "Trojan.Win32.Generic (untrusted executable)";
             }
-            else if (request.File.FileName.Contains("malware") || request.File.FileName.Contains("virus"))
+            else if (file.FileName.Contains("malware") || file.FileName.Contains("virus"))
             {
                 isSafe = false;
                 threatName = "Worm.Generic.MaliciousPayload";
             }
 
-            userSub.CurrentMonthFilesScanned++;
-            await _context.SaveChangesAsync();
+            // Register usage
+            var metadata = JsonSerializer.Serialize(new
+            {
+                fileName = file.FileName,
+                fileSizeKb = Math.Round((double)file.Length / 1024, 2),
+                sha256Hash = fileHash,
+                isSafe,
+                threatName
+            });
 
-            string remaining = isUnlimited ? "Unlimited" : (maxFiles - userSub.CurrentMonthFilesScanned).ToString();
+            await _usageService.RegisterAsync(new RegisterUsageDto
+            {
+                UserId = userId,
+                FeatureKey = "FILE_SCAN",
+                PackageId = check.PackageId ?? 0,
+                FeatureId = check.FeatureId ?? 0,
+                Status = "Success",
+                Metadata = metadata
+            });
+
+            string remaining = check.Remaining == -1 ? "Unlimited" : (check.Remaining - 1).ToString();
 
             return Ok(new
             {
-                fileName = request.File.FileName,
-                fileSizeKb = Math.Round((double)request.File.Length / 1024, 2),
+                fileName = file.FileName,
+                fileSizeKb = Math.Round((double)file.Length / 1024, 2),
                 sha256Hash = fileHash,
                 scanDate = DateTime.UtcNow,
                 isSafe,
                 status = isSafe ? "Safe" : "Threat Detected",
                 detectedThreat = threatName,
-                packageName = package.Name,
-                scansUsedThisMonth = userSub.CurrentMonthFilesScanned,
+                packageName = check.Package,
+                scansUsedThisMonth = (check.Used + 1),
                 scansRemainingThisMonth = remaining
             });
         }
-    }
-
-    public class FileScanRequest
-    {
-        public IFormFile? File { get; set; }
-        public string UserId { get; set; } = string.Empty;
     }
 }
