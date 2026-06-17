@@ -124,6 +124,8 @@ namespace CyberShield.API.Services
             return subscriptions.Select(MapToDto).ToList();
         }
 
+        internal static SubscriptionResponseDto MapToDtoStatic(UserSubscription s) => MapToDto(s);
+
         private static SubscriptionResponseDto MapToDto(UserSubscription s) => new()
         {
             Id = s.Id,

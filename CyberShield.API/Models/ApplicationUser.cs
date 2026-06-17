@@ -11,5 +11,9 @@ namespace CyberShield.API.Models
 
         public int? CurrentPackageId { get; set; }
         public virtual Package? CurrentPackage { get; set; }
+
+        public bool IsActive { get; set; } = true;
+        public DateTime? DisabledAt { get; set; }
+        public string? DisabledReason { get; set; }
     }
 }

@@ -16,6 +16,11 @@ namespace CyberShield.API.Services
 
         public async Task<EntitlementResult> CheckAsync(string userId, string featureKey)
         {
+            // 0. Check user is active
+            var user = await _db.Users.FindAsync(userId);
+            if (user is null || !user.IsActive)
+                return Denied("Account is disabled. Please contact support.");
+
             // 1. Find active subscription
             var subscription = await _db.UserSubscriptions
                 .Include(s => s.Package)
@@ -33,6 +38,10 @@ namespace CyberShield.API.Services
 
             if (feature is null)
                 return Denied($"Feature '{featureKey}' does not exist.");
+
+            // 2b. Check feature is enabled (admin toggle)
+            if (!feature.IsEnabled)
+                return Denied("Feature temporarily unavailable.");
 
             // 3. Check if package includes this feature
             var packageFeature = await _db.PackageFeatures

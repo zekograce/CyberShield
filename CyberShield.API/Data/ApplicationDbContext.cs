@@ -16,6 +16,7 @@ namespace CyberShield.API.Data
         public DbSet<UserSubscription> UserSubscriptions { get; set; }
         public DbSet<FeatureUsageHistory> FeatureUsageHistories { get; set; }
         public DbSet<FeatureUsageCounter> FeatureUsageCounters { get; set; }
+        public DbSet<AdminAuditLog> AdminAuditLogs { get; set; }
         public DbSet<SecurityNews> SecurityNews { get; set; }
         public DbSet<SecurityTip> SecurityTips { get; set; }
         public DbSet<ContactMessage> ContactMessages { get; set; }
@@ -75,6 +76,12 @@ namespace CyberShield.API.Data
 
                 entity.HasIndex(c => new { c.UserId, c.FeatureId, c.Year, c.Month })
                     .IsUnique();
+            });
+
+            builder.Entity<AdminAuditLog>(entity =>
+            {
+                entity.HasIndex(a => a.CreatedAt);
+                entity.HasIndex(a => a.Action);
             });
         }
     }

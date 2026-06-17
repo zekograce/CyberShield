@@ -32,6 +32,13 @@ builder.Services.AddScoped<IUserSubscriptionService, UserSubscriptionService>();
 builder.Services.AddScoped<IEntitlementService, EntitlementService>();
 builder.Services.AddScoped<IUsageService, UsageService>();
 
+// 3b. Admin Services
+builder.Services.AddScoped<IAdminAuditService, AdminAuditService>();
+builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
+builder.Services.AddScoped<IAdminUserService, AdminUserService>();
+builder.Services.AddScoped<IAdminFeatureService, AdminFeatureService>();
+builder.Services.AddScoped<IAdminAnalyticsService, AdminAnalyticsService>();
+
 // 4. JWT Authentication
 builder.Services.AddAuthentication(options =>
 {

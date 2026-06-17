@@ -19,6 +19,8 @@ namespace CyberShield.API.Models
 
         public bool IsActive { get; set; } = true;
 
+        public bool IsEnabled { get; set; } = true;
+
         public virtual ICollection<PackageFeature> PackageFeatures { get; set; } = new List<PackageFeature>();
     }
 }
