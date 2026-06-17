@@ -1,12 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using System;
-using System.IO;
-using System.Threading.Tasks;
-using System.Security.Cryptography;
-using Microsoft.AspNetCore.Http;
 using CyberShield.API.Data;
 using CyberShield.API.Models;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
 
 namespace CyberShield.API.Controllers
 {
@@ -24,97 +20,72 @@ namespace CyberShield.API.Controllers
         [HttpPost("scan")]
         public async Task<IActionResult> ScanFile([FromForm] FileScanRequest request)
         {
-            // 1. التحقق من صحة المعرف المدخل
             if (string.IsNullOrEmpty(request.UserId))
-            {
-                return BadRequest(new { message = "خطأ: يجب تحديد معرف مستخدم صالح!" });
-            }
+                return BadRequest(new { message = "A valid user ID is required." });
 
-            // 2. التحقق من وجود ملف حقيقي مرفوع
             if (request.File == null || request.File.Length == 0)
-            {
-                return BadRequest(new { message = "الرجاء اختيار ملف صالح لفحصه!" });
-            }
+                return BadRequest(new { message = "Please select a valid file to scan." });
 
-            // 3. جلب الاشتراك الحقيقي والفعال للمستخدم من قاعدة البيانات مباشرة
-            var userSub = await _context.Subscriptions
-                .Include(s => s.ProtectionPlan)
-                .FirstOrDefaultAsync(s => s.UserId == request.UserId && s.IsActive);
+            var userSub = await _context.UserSubscriptions
+                .Include(s => s.Package)
+                    .ThenInclude(p => p.Features)
+                .FirstOrDefaultAsync(s => s.UserId == request.UserId && s.Status == SubscriptionStatus.Active);
 
-            // 4. الحماية الصارمة: لو ملوش اشتراك فعال أو منتهي الصلاحية يرفض السيستم فوراً
             if (userSub == null || userSub.EndDate < DateTime.UtcNow)
-            {
-                return BadRequest(new { message = "عذراً، ليس لديك اشتراك نشط. يرجى الاشتراك أولاً في إحدى باقاتنا للتمتع بخدمة الفحص الحقيقية." });
-            }
+                return BadRequest(new { message = "No active subscription found. Please subscribe to a package first." });
 
-            var plan = userSub.ProtectionPlan;
-            if (plan == null)
-            {
-                return BadRequest(new { message = "خطأ: الباقة المرتبطة بهذا الاشتراك غير موجودة في قاعدة البيانات!" });
-            }
+            var package = userSub.Package;
+            var maxFilesFeature = package.Features.FirstOrDefault(f => f.FeatureKey == "MAX_FILES_PER_MONTH");
+            bool isUnlimited = maxFilesFeature?.Value == "Unlimited";
+            int maxFiles = isUnlimited ? int.MaxValue : (int.TryParse(maxFilesFeature?.Value, out var parsed) ? parsed : int.MaxValue);
 
-            // 5. التحقق من الحد الأقصى للباقة (العداد الذكي)
-            if (plan.MaxFilesPerMonth != -1)
-            {
-                if (userSub.CurrentMonthFilesScanned >= plan.MaxFilesPerMonth)
-                {
-                    return BadRequest(new { message = $"عذراً! لقد استهلكت الحد الأقصى لباقة الـ ({plan.PlanName}) وهو {plan.MaxFilesPerMonth} ملف لهذا الشهر." });
-                }
-            }
+            if (!isUnlimited && userSub.CurrentMonthFilesScanned >= maxFiles)
+                return BadRequest(new { message = $"Monthly scan limit of {maxFiles} files reached for the {package.Name} plan." });
 
-            // 6. حساب الـ SHA-256 Hash للملف بشكل غير متزامن
-            string fileHash = "";
+            string fileHash;
             using (var stream = request.File.OpenReadStream())
+            using (var sha256 = SHA256.Create())
             {
-                using (var sha256 = SHA256.Create())
-                {
-                    var hashBytes = await sha256.ComputeHashAsync(stream);
-                    fileHash = BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
-                }
+                var hashBytes = await sha256.ComputeHashAsync(stream);
+                fileHash = BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
             }
 
-            // 7. نظام الفحص والمحاكاة الذكي للملفات والتهديدات
             bool isSafe = true;
-            string threatName = "لا يوجد تهديدات (Clean) ✨";
-            string fileExtension = Path.GetExtension(request.File.FileName).ToLower();
+            string threatName = "No threats detected";
+            var ext = Path.GetExtension(request.File.FileName).ToLower();
 
-            if (fileExtension == ".exe" || fileExtension == ".bat" || fileExtension == ".vbs" || fileExtension == ".cmd")
+            if (ext is ".exe" or ".bat" or ".vbs" or ".cmd")
             {
                 isSafe = false;
-                threatName = "Trojan.Win32.Generic (ملف تنفيذي غير موثوق) ⚠️";
+                threatName = "Trojan.Win32.Generic (untrusted executable)";
             }
-            else if (request.File.FileName.Contains("malware") || request.File.FileName.Contains("virus") || request.File.FileName.Contains("hack"))
+            else if (request.File.FileName.Contains("malware") || request.File.FileName.Contains("virus"))
             {
                 isSafe = false;
-                threatName = "Worm.Generic.MaliciousPayload ⚠️";
+                threatName = "Worm.Generic.MaliciousPayload";
             }
 
-            // 8. تحديث العداد الفعلي في الداتابيز وحفظ التعديلات بثقة
             userSub.CurrentMonthFilesScanned++;
             await _context.SaveChangesAsync();
 
-            // حساب الفاضي من الباقة
-            string remainingScans = plan.MaxFilesPerMonth == -1
-                ? "ملفات غير محدودة"
-                : (plan.MaxFilesPerMonth - userSub.CurrentMonthFilesScanned).ToString();
+            string remaining = isUnlimited ? "Unlimited" : (maxFiles - userSub.CurrentMonthFilesScanned).ToString();
 
             return Ok(new
             {
                 fileName = request.File.FileName,
-                fileSizeReadable = $"{Math.Round((double)request.File.Length / 1024, 2)} KB",
+                fileSizeKb = Math.Round((double)request.File.Length / 1024, 2),
                 sha256Hash = fileHash,
-                scanDate = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-                isSafe = isSafe,
-                status = isSafe ? "آمن وموثوق ✅" : "ملغوم ❌",
+                scanDate = DateTime.UtcNow,
+                isSafe,
+                status = isSafe ? "Safe" : "Threat Detected",
                 detectedThreat = threatName,
-                userPlanName = plan.PlanName,
-                currentMonthScannedCount = userSub.CurrentMonthFilesScanned,
-                remainingScansThisMonth = remainingScans
+                packageName = package.Name,
+                scansUsedThisMonth = userSub.CurrentMonthFilesScanned,
+                scansRemainingThisMonth = remaining
             });
         }
     }
 
-    // تعديل الـ Request ليقبل الـ UserId كـ string متوافق مع Identity
     public class FileScanRequest
     {
         public IFormFile? File { get; set; }

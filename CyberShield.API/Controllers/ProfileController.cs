@@ -1,4 +1,4 @@
-﻿using CyberShield.API.Data;
+using CyberShield.API.Data;
 using CyberShield.API.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -20,17 +20,16 @@ namespace CyberShield.API.Controllers
         }
 
         [HttpGet("my-profile")]
-        [Authorize] // لازم يكون مسجل دخول
+        [Authorize]
         public async Task<IActionResult> GetMyProfile()
         {
-            // بنجيب الـ ID من التوكن بتاع اليوزر
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
             var user = await _userManager.Users
-                .Include(u => u.CurrentPlan) // عشان نجيب بيانات الباقة
+                .Include(u => u.CurrentPackage)
                 .FirstOrDefaultAsync(u => u.Id == userId);
 
-            if (user == null) return NotFound("User not found");
+            if (user == null) return NotFound("User not found.");
 
             return Ok(new
             {
@@ -39,7 +38,7 @@ namespace CyberShield.API.Controllers
                 user.CreatedAt,
                 user.FilesScannedCount,
                 user.LinksScannedCount,
-                PlanName = user.CurrentPlan?.Name ?? "بدون باقة"
+                CurrentPackage = user.CurrentPackage?.Name ?? "No active package"
             });
         }
     }
