@@ -3,6 +3,7 @@ using System;
 using CyberShield.API.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,54 +11,14 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CyberShield.API.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260616162900_InitialCreate")]
+    partial class InitialCreate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.0");
-
-            modelBuilder.Entity("CyberShield.API.Models.AdminAuditLog", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Action")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("AdminId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("NewValue")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("OldValue")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("TargetId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("TargetType")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Action");
-
-                    b.HasIndex("CreatedAt");
-
-                    b.ToTable("AdminAuditLogs");
-                });
 
             modelBuilder.Entity("CyberShield.API.Models.ApplicationUser", b =>
                 {
@@ -74,14 +35,8 @@ namespace CyberShield.API.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("CurrentPackageId")
+                    b.Property<int?>("CurrentPlanId")
                         .HasColumnType("INTEGER");
-
-                    b.Property<DateTime?>("DisabledAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DisabledReason")
-                        .HasColumnType("TEXT");
 
                     b.Property<string>("Email")
                         .HasMaxLength(256)
@@ -96,9 +51,6 @@ namespace CyberShield.API.Migrations
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
 
                     b.Property<int>("LinksScannedCount")
                         .HasColumnType("INTEGER");
@@ -138,7 +90,7 @@ namespace CyberShield.API.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CurrentPackageId");
+                    b.HasIndex("CurrentPlanId");
 
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");
@@ -190,178 +142,60 @@ namespace CyberShield.API.Migrations
                     b.ToTable("ContactMessages");
                 });
 
-            modelBuilder.Entity("CyberShield.API.Models.Feature", b =>
+            modelBuilder.Entity("CyberShield.API.Models.ProtectionPlan", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("FeatureKey")
+                    b.Property<string>("CompanyName")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
-                    b.Property<bool>("IsActive")
+                    b.Property<int>("DiscountPercentage")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("IsEnabled")
+                    b.PrimitiveCollection<string>("Features")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("HasAdvancedEmailVerification")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("HasDedicatedAccountManager")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MaxDevicesAllowed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MaxFilesPerMonth")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
-                    b.HasKey("Id");
-
-                    b.ToTable("Features");
-                });
-
-            modelBuilder.Entity("CyberShield.API.Models.FeatureUsageCounter", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("FeatureId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("Month")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("UsageCount")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Year")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FeatureId");
-
-                    b.HasIndex("UserId", "FeatureId", "Year", "Month")
-                        .IsUnique();
-
-                    b.ToTable("FeatureUsageCounters");
-                });
-
-            modelBuilder.Entity("CyberShield.API.Models.FeatureUsageHistory", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("FeatureId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Metadata")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("PackageId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("RequestId")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("UsedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FeatureId");
-
-                    b.ToTable("FeatureUsageHistories");
-                });
-
-            modelBuilder.Entity("CyberShield.API.Models.Package", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("BillingCycle")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Currency")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("CurrentPrice")
+                    b.Property<decimal>("OldPrice")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("IsPopular")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Name")
+                    b.Property<string>("PlanName")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
-                    b.Property<decimal>("OriginalPrice")
-                        .HasColumnType("decimal(18,2)");
+                    b.Property<double>("Rating")
+                        .HasColumnType("REAL");
 
-                    b.HasKey("Id");
-
-                    b.ToTable("Packages");
-                });
-
-            modelBuilder.Entity("CyberShield.API.Models.PackageFeature", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
+                    b.Property<int>("ReviewsCount")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("DisplayOrder")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("FeatureId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("LimitValue")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("PackageId")
+                    b.Property<bool>("UnlimitedLinkScanning")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("FeatureId");
-
-                    b.HasIndex("PackageId");
-
-                    b.ToTable("PackageFeatures");
+                    b.ToTable("ProtectionPlans");
                 });
 
             modelBuilder.Entity("CyberShield.API.Models.SecurityNews", b =>
@@ -405,29 +239,26 @@ namespace CyberShield.API.Migrations
                     b.ToTable("SecurityTips");
                 });
 
-            modelBuilder.Entity("CyberShield.API.Models.UserSubscription", b =>
+            modelBuilder.Entity("CyberShield.API.Models.Subscription", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<decimal>("AmountPaid")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<int>("CurrentMonthFilesScanned")
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("EndDate")
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("PackageId")
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ProtectionPlanId")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("TEXT");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("INTEGER");
 
                     b.Property<string>("UserId")
                         .IsRequired()
@@ -435,11 +266,9 @@ namespace CyberShield.API.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PackageId");
+                    b.HasIndex("ProtectionPlanId");
 
-                    b.HasIndex("UserId");
-
-                    b.ToTable("UserSubscriptions");
+                    b.ToTable("Subscriptions");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
@@ -572,72 +401,22 @@ namespace CyberShield.API.Migrations
 
             modelBuilder.Entity("CyberShield.API.Models.ApplicationUser", b =>
                 {
-                    b.HasOne("CyberShield.API.Models.Package", "CurrentPackage")
+                    b.HasOne("CyberShield.API.Models.ProtectionPlan", "CurrentPlan")
                         .WithMany()
-                        .HasForeignKey("CurrentPackageId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .HasForeignKey("CurrentPlanId");
 
-                    b.Navigation("CurrentPackage");
+                    b.Navigation("CurrentPlan");
                 });
 
-            modelBuilder.Entity("CyberShield.API.Models.FeatureUsageCounter", b =>
+            modelBuilder.Entity("CyberShield.API.Models.Subscription", b =>
                 {
-                    b.HasOne("CyberShield.API.Models.Feature", "Feature")
+                    b.HasOne("CyberShield.API.Models.ProtectionPlan", "ProtectionPlan")
                         .WithMany()
-                        .HasForeignKey("FeatureId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Feature");
-                });
-
-            modelBuilder.Entity("CyberShield.API.Models.FeatureUsageHistory", b =>
-                {
-                    b.HasOne("CyberShield.API.Models.Feature", "Feature")
-                        .WithMany()
-                        .HasForeignKey("FeatureId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Feature");
-                });
-
-            modelBuilder.Entity("CyberShield.API.Models.PackageFeature", b =>
-                {
-                    b.HasOne("CyberShield.API.Models.Feature", "Feature")
-                        .WithMany("PackageFeatures")
-                        .HasForeignKey("FeatureId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("CyberShield.API.Models.Package", "Package")
-                        .WithMany("PackageFeatures")
-                        .HasForeignKey("PackageId")
+                        .HasForeignKey("ProtectionPlanId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Feature");
-
-                    b.Navigation("Package");
-                });
-
-            modelBuilder.Entity("CyberShield.API.Models.UserSubscription", b =>
-                {
-                    b.HasOne("CyberShield.API.Models.Package", "Package")
-                        .WithMany("Subscriptions")
-                        .HasForeignKey("PackageId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("CyberShield.API.Models.ApplicationUser", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Package");
-
-                    b.Navigation("User");
+                    b.Navigation("ProtectionPlan");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -689,18 +468,6 @@ namespace CyberShield.API.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("CyberShield.API.Models.Feature", b =>
-                {
-                    b.Navigation("PackageFeatures");
-                });
-
-            modelBuilder.Entity("CyberShield.API.Models.Package", b =>
-                {
-                    b.Navigation("PackageFeatures");
-
-                    b.Navigation("Subscriptions");
                 });
 #pragma warning restore 612, 618
         }
