@@ -77,6 +77,9 @@ namespace CyberShield.API.Controllers
 
             if (user != null && await _userManager.CheckPasswordAsync(user, model.Password))
             {
+                if (!user.IsActive)
+                    return Unauthorized(new { message = "Account disabled. Please contact support." });
+
                 var authClaims = new List<Claim>
                 {
                     new Claim(ClaimTypes.NameIdentifier, user.Id),

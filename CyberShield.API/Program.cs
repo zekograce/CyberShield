@@ -1,4 +1,5 @@
 using CyberShield.API.Data;
+using CyberShield.API.Filters;
 using CyberShield.API.Models;
 using CyberShield.API.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -70,7 +71,11 @@ builder.Services.AddCors(options =>
     });
 });
 
-builder.Services.AddControllers();
+builder.Services.AddTransient<ActiveUserFilter>();
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<ActiveUserFilter>();
+});
 builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddSwaggerGen(c =>
